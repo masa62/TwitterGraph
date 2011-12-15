@@ -63,6 +63,9 @@ app.get('/', function (req, res) {
 });
 
 /****oauth関連ここから****/
+/**
+ * oauth認証を行う
+ */
 app.get('/auth/twitter', function (req, res) {
   oauth.getOAuthRequestToken(function (error, oauth_token, oauth_token_secret, results){
     if (error) {
@@ -77,116 +80,118 @@ app.get('/auth/twitter', function (req, res) {
   });
 });
 
+/**
+ * oauth認証後に呼ばれる
+ */
 app.get('/auth/twitter/callback', function (req, res) {
-  if (req.session.oauth) {
-    req.session.oauth.verifier = req.query.oauth_verifier;
-    oauth.getOAuthAccessToken(req.session.oauth.token, req.session.oauth.token_secret, req.session.oauth.verifier,
-      function (error, oauth_access_token, oauth_access_token_secret, results) {
-        if (error) {
-          res.send(error);
-        }
-        else {
-          req.session.oauth.access_token = oauth_access_token;
-          req.session.oauth.access_token_secret = oauth_access_token_secret;
-          req.session.user_profile = results;
+  if (!req.session.oauth) {
+    res.redirect("/");
+    return;
+  }
 
-          var oa = req.session.oauth;
-          var id = results.user_id;
+  req.session.oauth.verifier = req.query.oauth_verifier;
+  oauth.getOAuthAccessToken(req.session.oauth.token, req.session.oauth.token_secret, req.session.oauth.verifier,
+    function (error, oauth_access_token, oauth_access_token_secret, results) {
+      if (error) {
+        res.send(error);
+      }
+      else {
+        req.session.oauth.access_token = oauth_access_token;
+        req.session.oauth.access_token_secret = oauth_access_token_secret;
+        req.session.user_profile = results;
 
-          function analysis_mention(err, data) {
-            var json = JSON.parse(data);
-            Relation.find({from: id}, function (err, docs) {
-              var relations = {};
-              for (var i = 0; i < docs.length; i ++) {
-                relations[docs[i].to] = docs[i];
-              }
-              for (var i = 0; i < json.length; i ++) {
-                var entry = json[i];
-                var uid = entry["in_reply_to_user_id"];
-                if (!uid) {
-                  continue;
-                }
-                if (!relations[uid]) {
-                  relations[uid] = new Relation({score: 0});
-                  relations[uid].to = uid;
-                  relations[uid].from = id;
-                }
-                relations[uid].score = relations[uid].score + 1;
-              }
-              for (var uid in relations) {
-                if (uid === 'img') {
-                  continue;
-                }
-                if (relations[uid].score === 0) {
-                  continue;
-                }
-                relations[uid].save();
-              }
-              res.redirect('/');
-            });
-          }
+        var oa = req.session.oauth;
+        var id = results.user_id;
 
-          function analysis_following(err, data) {
-            var json = JSON.parse(data);
-            var ids = json.ids;
-            // 一度フォロワーを全削除してからもう一度登録しなおす
-            /*
-            for (var i = 0; i < me.following.length; i ++) {
-              me.following.pop();
-            }*/
-            var following = [];
-            for (var i in ids) {
-              following.push(ids[i]);
+        function analysis_mention(err, data) {
+          var json = JSON.parse(data);
+          Relation.find({from: id}, function (err, docs) {
+            var relations = {};
+            for (var i = 0; i < docs.length; i ++) {
+              relations[docs[i].to] = docs[i];
             }
-            me.following = following;
-            me.save();
-
-            oauth.get("http://api.twitter.com/1/statuses/user_timeline.json?count=200", 
-                oa.access_token,
-                oa.access_token_secret, 
-                analysis_mention);
-          }
-
-          function analysis() {
-            oauth.get("http://api.twitter.com/1/friends/ids.json", 
-                oa.access_token,
-                oa.access_token_secret, 
-                analysis_following);
-          }
-
-          // 画像をゲットしてそれのcallbackにすること
-          var me = null;
-          
-          User.find({id: results.id}, function (err, docs) {
-            if (!docs[0]) {
-              console.log("new user created");
-              request({
-                  uri: 'https://api.twitter.com/1/users/profile_image?screen_name=' + results.screen_name + '&size=normal',
-                  encoding: 'binary'
-              }, function (error, response, body) {
-                if (response.statusCode === 200) {
-                  me = new User({
-                      id: results.id,
-                      screen_name: results.screen_name,
-                      img: "data:" + response.headers["content-type"] + 
-                           ";base64," + 
-                           (new Buffer(body, 'binary')).toString('base64'),
-                      last_up_date: Date.now()
-                  });
-                  me.save(function (err) {
-                    analysis();
-                  });
-                }
-              });
+            for (var i = 0; i < json.length; i ++) {
+              var entry = json[i];
+              var uid = entry["in_reply_to_user_id"];
+              if (!uid) {
+                continue;
+              }
+              if (!relations[uid]) {
+                relations[uid] = new Relation({score: 0});
+                relations[uid].to = uid;
+                relations[uid].from = id;
+              }
+              relations[uid].score = relations[uid].score + 1;
             }
-            else {
-              me = docs[0];
-              analysis();
+            for (var uid in relations) {
+              if (uid === 'img') {
+                continue;
+              }
+              if (relations[uid].score === 0) {
+                continue;
+              }
+              relations[uid].save();
             }
+            res.redirect('/');
           });
         }
-    });
-  }
+
+        function analysis_following(err, data) {
+          var json = JSON.parse(data);
+          var ids = json.ids;
+          // 一度フォロワーを全削除してからもう一度登録しなおす
+          var following = [];
+          for (var i in ids) {
+            following.push(ids[i]);
+          }
+          me.following = following;
+          me.save();
+
+          oauth.get("http://api.twitter.com/1/statuses/user_timeline.json?count=200", 
+              oa.access_token,
+              oa.access_token_secret, 
+              analysis_mention);
+        }
+
+        function analysis() {
+          oauth.get("http://api.twitter.com/1/friends/ids.json", 
+              oa.access_token,
+              oa.access_token_secret, 
+              analysis_following);
+        }
+
+        // 画像をゲットしてそれのcallbackにすること
+        var me = null;
+        
+        User.find({id: id}, function (err, docs) {
+          if (!docs[0]) {
+            console.log("new user created");
+            request({
+                uri: 'https://api.twitter.com/1/users/profile_image?screen_name=' + results.screen_name + '&size=normal',
+                encoding: 'binary'
+            }, function (error, response, body) {
+              if (response.statusCode === 200) {
+                me = new User({
+                    id: id,
+                    screen_name: results.screen_name,
+                    img: "data:" + response.headers["content-type"] + 
+                         ";base64," + 
+                         (new Buffer(body, 'binary')).toString('base64'),
+                    last_up_date: Date.now()
+                });
+                me.save(function (err) {
+                  analysis();
+                });
+              }
+            });
+          }
+          else {
+            me = docs[0];
+            analysis();
+          }
+        });
+      }
+  });
 });
 /****oauth ここまで****/
 
@@ -196,13 +201,14 @@ app.get('/auth/twitter/callback', function (req, res) {
  */
 app.get('/user/:id', function (req, res) {
   var id = req.params.id;
+  console.log("/user/id: " + id);
   User.find({id: id}, function (err, docs) {
     if (err) {
       console.log("user not found");
       res.send({});
     }
     else {
-      res.send(docs[0]);
+      res.send(JSON.stringify(docs[0]));
     }
   });
 });

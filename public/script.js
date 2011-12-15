@@ -23,6 +23,11 @@
       processing.drawmetext = function (text, x, y) {
         processing.text(text, processing.width / 2, processing.height / 2);
       }
+      processing.drawImage = function (data) {
+        b = processing.loadImage(data);
+        processing.println(b);
+        processing.image(b, 0, 0);
+      }
       var cols = 0, rows = 0;
       processing.drawuser = function (user) {
         console.log(user.name);
@@ -47,5 +52,21 @@
     var canvas = document.getElementsByTagName("canvas")[0];
     var p = new Processing(canvas, sketchProc);
     p.drawmetext(myname);
+
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", "/user/" + myid);
+    xhr.onreadystatechange = function () {
+      console.log(xhr.status);
+      if (xhr.readyState === 4 && xhr.status === 200) {
+        var user = JSON.parse(xhr.responseText);
+        var img = document.createElement("img");
+        img.src = user.img;
+        document.body.appendChild(img);
+        p.drawImage(user.img);
+        // ここで解析しながらグラフを描く
+      }
+    }
+    xhr.send(null);
+
   }
 })();
