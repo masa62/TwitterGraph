@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <% if (session.user_profile) {%>
-  <script type="text/javascript" src="http://localhost:3080/socket.io/socket.io.js"></script>
   <script type="text/javascript" src="processing-1.3.6.js"></script>
   <script type="text/javascript">
     var myname = '<%= session.user_profile.screen_name %>';

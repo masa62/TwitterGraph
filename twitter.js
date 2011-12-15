@@ -12,12 +12,10 @@ var express = require('express'),
     url = require('url'),
     http = require('http'),
     request = require('request'),
-    io = require('socket.io').listen(3080),
-    store = new (require('connect').session.MemoryStore)(),
-    parseCookie = require('connect').utils.parseCookie,
-    user_dict = {},
     mongoose = require('mongoose'),
     Schema = mongoose.Schema;
+
+/**** mongodbの設定開始 ****/
 
 mongoose.connect('mongodb://localhost/twitrelation');
 
@@ -41,15 +39,15 @@ var Relation = new Schema({
 mongoose.model('Relation', Relation);
 Relation = mongoose.model('Relation');
 
+/**** mongodbの設定ここまで ****/
+
 app.configure(function () {
   app.use(express.logger());
   app.use(express.bodyParser());
   app.use(express.cookieParser());
   app.use(express.static(__dirname + '/public'));
   app.use(express.session({
-    store: store,
     secret: "secret",
-    cookie: {httpOnly: false}
   }));
   app.set('view engine', 'ejs');
 });
@@ -115,7 +113,6 @@ app.get('/auth/twitter/callback', function (req, res) {
                 }
                 relations[uid].score = relations[uid].score + 1;
               }
-              show_results("mention analysis finished", id);
               for (var uid in relations) {
                 if (uid === 'img') {
                   continue;
@@ -164,8 +161,8 @@ app.get('/auth/twitter/callback', function (req, res) {
             if (!docs[0]) {
               console.log("new user created");
               request({
-                uri: 'https://api.twitter.com/1/users/profile_image?screen_name=' + results.screen_name + '&size=normal',
-                encoding: 'binary'
+                  uri: 'https://api.twitter.com/1/users/profile_image?screen_name=' + results.screen_name + '&size=normal',
+                  encoding: 'binary'
               }, function (error, response, body) {
                 if (response.statusCode === 200) {
                   me = new User({
@@ -193,6 +190,39 @@ app.get('/auth/twitter/callback', function (req, res) {
 });
 /****oauth ここまで****/
 
+/**
+ * /user/id(idはtwitterのid(整数値))にアクセスが来たときのハンドラ
+ * id番のユーザの情報が登録済みなら返す
+ */
+app.get('/user/:id', function (req, res) {
+  var id = req.params.id;
+  User.find({id: id}, function (err, docs) {
+    if (err) {
+      console.log("user not found");
+      res.send({});
+    }
+    else {
+      res.send(docs[0]);
+    }
+  });
+});
+
+/**
+ * /relation/id(idはtwitterのid(整数値))にアクセスが来たときのハンドラ
+ * id番のユーザの関係の集合全体を返す
+ */
+app.get('/relation/:id', function (req, res) {
+  var id = req.params.id;
+  Relation.find({from: id}, function (err, docs) {
+    if (err) {
+      res.send([]);
+    }
+    else {
+      res.send(docs);
+    }
+  });
+});
+
 app.get('signout', function (req, res) {
   delete req.session.oauth;
   delete req.session.user_profile;
@@ -200,40 +230,3 @@ app.get('signout', function (req, res) {
 });
 
 app.listen(3000);
-
-
-function show_results(title, id) {
-  console.log("---" + title + "---");
-  console.log(user_dict[id]);
-  console.log("-------------------------------------");
-}
-
-
-
-io.sockets.on('connection', function (socket) {
-  var sid;
-  var session;
-  socket.on('cookie', function (data) {
-    var cookie = data.cookie;
-    sid = parseCookie(cookie)['connect.sid'];
-    store.get(sid, function (err, s) {
-      session = s; 
-      var id = session.user_profile.id;
-      User.find({id: id}, function (err, docs) {
-        socket.emit("user", JSON.stringify(docs[0]));
-      })
-    });
-  });
-  
-
-  socket.on('analysis', function(data) {
-    if (!session) {
-      var cookie = data.cookie,
-          sid = parseCookie(cookie)['connect.sid'];
-      store.get(sid, function (err, s) {
-        session = s; analysis(data, s);
-      });
-    }
-  });
-
-});
