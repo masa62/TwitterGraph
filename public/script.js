@@ -1,7 +1,7 @@
 (function () {
   window.onload = function () {
     var socket = io.connect('http://localhost:3080/');
-    socket.send( {cookie: document.cookie});
+    socket.emit('cookie', {cookie: document.cookie});
 
     var User = function (name) {
       this.name = name;
@@ -15,19 +15,13 @@
 
     var userset = {};
     socket.on('user', function (data) {
+      console.log('user event available');
       var json = JSON.parse(data);
-      var user = new User(json.data.name);
-      userset[json.data.name] = user;
-      me.relationship(user, json.data.count);
-      p.drawuser(user);
+      console.log(json);
+      var img = document.createElement('img');
+      document.body.appendChild(img);
+      img.src = json.img;
     });
-
-    var analysis = document.getElementById("analysis");
-    if (analysis) {
-      analysis.addEventListener("click", function (ev) {
-        socket.emit('analysis',{cookie: document.cookie});
-      }, false);
-    }
 
     var me = new User(myname);
     userset[myname] = me;

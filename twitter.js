@@ -11,6 +11,7 @@ var express = require('express'),
     ),
     url = require('url'),
     http = require('http'),
+    request = require('request'),
     io = require('socket.io').listen(3080),
     store = new (require('connect').session.MemoryStore)(),
     parseCookie = require('connect').utils.parseCookie,
@@ -90,55 +91,57 @@ app.get('/auth/twitter/callback', function (req, res) {
           req.session.oauth.access_token = oauth_access_token;
           req.session.oauth.access_token_secret = oauth_access_token_secret;
           req.session.user_profile = results;
-          if (!user_dict[req.session.user_profile.id]) {
-            user_dict[req.session.user_profile.id] = {};
-          }
-          user_dict[req.session.user_profile.id].img = req.session.user_profile.image_url;
-          console.log("***IMG*** " + req.session.user_profile.profile_image_url);
 
           var oa = req.session.oauth;
-          var id = req.session.user_profile.id;
+          var id = results.user_id;
 
           function analysis_mention(err, data) {
             var json = JSON.parse(data);
-            var mentions = {};
-            for (var i = 0; i < json.length; i ++) {
-              var entry = json[i];
-              var uid = entry["in_reply_to_user_id"];
-              if (!uid) {
-                continue;
+            Relation.find({from: id}, function (err, docs) {
+              var relations = {};
+              for (var i = 0; i < docs.length; i ++) {
+                relations[docs[i].to] = docs[i];
               }
-              if (!mentions[uid]) {
-                mentions[uid] = new Relation({score: 0});
+              for (var i = 0; i < json.length; i ++) {
+                var entry = json[i];
+                var uid = entry["in_reply_to_user_id"];
+                if (!uid) {
+                  continue;
+                }
+                if (!relations[uid]) {
+                  relations[uid] = new Relation({score: 0});
+                  relations[uid].to = uid;
+                  relations[uid].from = id;
+                }
+                relations[uid].score = relations[uid].score + 1;
               }
-              mentions[uid].to = uid;
-              mentions[uid].from = results.id;
-              mentions[uid].score = mentions[uid].score + 1;
-            }
-            show_results("mention analysis finished", id);
-            for (var uid in mentions) {
-              if (uid === 'img') {
-                continue;
+              show_results("mention analysis finished", id);
+              for (var uid in relations) {
+                if (uid === 'img') {
+                  continue;
+                }
+                if (relations[uid].score === 0) {
+                  continue;
+                }
+                relations[uid].save();
               }
-              if (mentions[uid].score === 0) {
-                continue;
-              }
-              /*
-              oauth.get("http://api.twitter.com/1/users/show.json?user_id=" + uid,
-                  oa.access_token,
-                  oa.access_token_secret,
-                  analysis_user);*/
-              mentions[uid].save();
-            }
-            res.redirect('/');
+              res.redirect('/');
+            });
           }
 
           function analysis_following(err, data) {
             var json = JSON.parse(data);
             var ids = json.ids;
+            // 一度フォロワーを全削除してからもう一度登録しなおす
+            /*
+            for (var i = 0; i < me.following.length; i ++) {
+              me.following.pop();
+            }*/
+            var following = [];
             for (var i in ids) {
-              me.following.push(ids[i]);
+              following.push(ids[i]);
             }
+            me.following = following;
             me.save();
 
             oauth.get("http://api.twitter.com/1/statuses/user_timeline.json?count=200", 
@@ -148,7 +151,6 @@ app.get('/auth/twitter/callback', function (req, res) {
           }
 
           function analysis() {
-            console.log("analysis");
             oauth.get("http://api.twitter.com/1/friends/ids.json", 
                 oa.access_token,
                 oa.access_token_secret, 
@@ -156,13 +158,35 @@ app.get('/auth/twitter/callback', function (req, res) {
           }
 
           // 画像をゲットしてそれのcallbackにすること
-          var me = new User({
-              id: results.id,
-              screen_name: results.screen_name,
-              img: "",
-              last_up_date: Date.now()
+          var me = null;
+          
+          User.find({id: results.id}, function (err, docs) {
+            if (!docs[0]) {
+              console.log("new user created");
+              request({
+                uri: 'https://api.twitter.com/1/users/profile_image?screen_name=' + results.screen_name + '&size=normal',
+                encoding: 'binary'
+              }, function (error, response, body) {
+                if (response.statusCode === 200) {
+                  me = new User({
+                      id: results.id,
+                      screen_name: results.screen_name,
+                      img: "data:" + response.headers["content-type"] + 
+                           ";base64," + 
+                           (new Buffer(body, 'binary')).toString('base64'),
+                      last_up_date: Date.now()
+                  });
+                  me.save(function (err) {
+                    analysis();
+                  });
+                }
+              });
+            }
+            else {
+              me = docs[0];
+              analysis();
+            }
           });
-          analysis();
         }
     });
   }
@@ -192,15 +216,15 @@ io.sockets.on('connection', function (socket) {
   socket.on('cookie', function (data) {
     var cookie = data.cookie;
     sid = parseCookie(cookie)['connect.sid'];
+    store.get(sid, function (err, s) {
+      session = s; 
+      var id = session.user_profile.id;
+      User.find({id: id}, function (err, docs) {
+        socket.emit("user", JSON.stringify(docs[0]));
+      })
+    });
   });
-
-  function sendData(uid) {
-    var id = session.user_profile.id;
-    socket.emit("user", JSON.stringify({
-        img: user_dict[uid].img,
-        data: user_dict[id][uid]
-    }));
-  }
+  
 
   socket.on('analysis', function(data) {
     if (!session) {
@@ -209,9 +233,6 @@ io.sockets.on('connection', function (socket) {
       store.get(sid, function (err, s) {
         session = s; analysis(data, s);
       });
-    }
-    else {
-      analysis(data, session);
     }
   });
 

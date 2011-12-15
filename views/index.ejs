@@ -15,7 +15,6 @@
 <body>
   <% if (session.user_profile) {%>
   <p>Welcome, <%= session.user_profile.screen_name %> </p>
-  <input type="button" id="analysis" value="analysis"/><br>
   <canvas width="1000" height="500"></canvas>
   <% } %>
   <% if (!session.user_profile) { %>
