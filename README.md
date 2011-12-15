@@ -1,9 +1,10 @@
 #Overview
 Twitterのソーシャルグラフを頑張って書いてみようと言う話
+
 描画を普通のソーシャルグラフ(mentionやフォロー状況などから採点するだけ)
 にするか、漫画のような人物相関図を作るかで悩み中
 
-#Dependency
+#Developing Enviroment
 Ubuntu 11.04
 
 nodejs 0.4.11
