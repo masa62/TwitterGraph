@@ -10,48 +10,17 @@
         this.relation.push({user: user, value: value});
       }
     }
-
-    function sketchProc(processing) {
-      processing.setup = function () {
-        processing.size(1020, 520);
-        processing.noLoop();
-        processing.stroke(0);
-        processing.fill(0);
-      }
-      processing.draw = function () {
-      }
-      processing.drawmetext = function (text, x, y) {
-        processing.text(text, processing.width / 2, processing.height / 2);
-      }
-      processing.drawImage = function (data) {
-        b = processing.loadImage(data);
-        processing.println(b);
-        processing.image(b, 0, 0);
-      }
-      var cols = 0, rows = 0;
-      processing.drawuser = function (user) {
-        console.log(user.name);
-        var x = cols * 150 + 10;
-        var y = rows * 150 + 10;
-        if (rows == 2) {
-          y = 500 - 150 - 10;
-        }
-        processing.text(user.name, x, y);
-        cols ++;
-        if (rows == 2 && cols == 4) {
-          cols = 6;
-        }
-        if (cols == 6) {
-          cols = 0;
-          if (rows === 0) {
-            rows = 2;
-          }
-        }
-      }
-    }
     var canvas = document.getElementsByTagName("canvas")[0];
-    var p = new Processing(canvas, sketchProc);
-    p.drawmetext(myname);
+    var context = canvas.getContext('2d');
+
+    function Node(options) {
+      this.speed = [0, 0];
+      this.position = [Math.floor(Math.random()*960), Math.floor(Math.random() * 460)];
+      this.id = options.id;
+      this.img = options.img || "";
+      this.name = options.screen_name || "test";
+      this.relation = [];
+    }
 
     var xhr = new XMLHttpRequest();
     xhr.open("GET", "/user/" + myid);
@@ -59,14 +28,65 @@
       console.log(xhr.status);
       if (xhr.readyState === 4 && xhr.status === 200) {
         var user = JSON.parse(xhr.responseText);
-        var img = document.createElement("img");
-        img.src = user.img;
-        document.body.appendChild(img);
-        p.drawImage(user.img);
         // ここで解析しながらグラフを描く
-      }
-    }
-    xhr.send(null);
+        /*
+        var img = new Image();
+        img.src = user.img;
+        context.drawImage(img, 0, 0);
+        */
+        var nodes = [];
+        var node = new Node({id: myid, screen_name: myname, img: user.img});
+        node.position = [500, 250];
+        nodes.push(node);
+        var nodecount = 10;
+        for (var i = 0; i < nodecount; i ++) {// relation in user.following) {
+          var relation = user.following[i];
+          var rnode = new Node({id: relation});
+          node.relation.push(rnode);
+          nodes.push(rnode);
+        }
 
+        var count = 0;
+        do {
+          var energy = 0;
+          for (var i = 1; i < nodecount; i++) {
+            var node1 = nodes[i];
+            power = [0.0,0.0];
+            var g = 500.0;
+            for (var j = 0; j < nodecount; j ++) {
+              var node2 = nodes[j];
+              if (node1 === node2) continue;
+              power[0] = power[0] + g / Math.pow(node1.position[0] - node2.position[0],2);
+              power[1] = power[1] + g / Math.pow(node1.position[1] - node2.position[1],2);
+            }
+            var k = 0.7;
+            var l = 100.0;
+            for (var j = 0; j < nodecount; j ++) {
+              var node2 = nodes[j];
+              if (node1 === node2) continue;
+              power[0] = power[0] + k * (Math.abs(node1.position[0] - node2.position[0]) - l);
+              power[1] = power[1] + k * (Math.abs(node1.position[1] - node2.position[1]) - l);
+            }
+            var dt = 0.1;
+            var m = 1.0;
+            node1.speed[0] = (node1.speed[0] + dt * power[0] / m) * 0.01;
+            node1.speed[1] = (node1.speed[1] + dt * power[1] / m) * 0.01;
+            node1.position[0] = node1.position[0] + dt * node1.speed[0];
+            node1.position[1] = node1.position[1] + dt * node1.speed[1];
+            energy = energy + m * (node1.speed[0]*node1.speed[0] + node1.speed[1] * node1.speed[1]);
+          }
+          count ++;
+          console.log("energy: " + energy);
+        } while(count < 100)//energy > 100);
+        console.log(count);
+        for (var i = 0; i < nodes.length; i ++) {
+          var node1 = nodes[i];
+          var img = new Image();
+          img.src = user.img;
+          context.drawImage(img, node1.position[0], node1.position[1]);
+        }
+      }
+    };
+    xhr.send(null);
   }
 })();

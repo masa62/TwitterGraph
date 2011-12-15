@@ -229,6 +229,20 @@ app.get('/relation/:id', function (req, res) {
   });
 });
 
+app.get('/between/:id/:oid', function (req, res) {
+  var id = req.params.id;
+  var oid = req.params.oid;
+  Relation.find({from: id, to: oid}, function (err, docs) {
+    var r = docs[0] || {from: id, to: oid, score: 0};
+    Relation.find({from: oid, to: id}, function (err, docs) {
+      var relations = [];
+      relations.push(r);
+      relations.push(docs[0] || {from: oid, to: id, score: 0});
+      res.send(relations);
+    });
+  });
+});
+
 app.get('signout', function (req, res) {
   delete req.session.oauth;
   delete req.session.user_profile;
