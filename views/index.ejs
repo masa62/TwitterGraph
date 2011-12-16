@@ -15,7 +15,7 @@
 <body>
   <% if (session.user_profile) {%>
   <p>Welcome, <%= session.user_profile.screen_name %> </p>
-  <canvas width="1000" height="500"></canvas>
+  <canvas width="1000" height="1000"></canvas>
   <% } %>
   <% if (!session.user_profile) { %>
   <a href="/auth/twitter">Sign in</a>

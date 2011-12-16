@@ -15,7 +15,7 @@
 
     function Node(options) {
       this.speed = [0, 0];
-      this.position = [Math.floor(Math.random()*960), Math.floor(Math.random() * 460)];
+      this.position = [Math.floor(Math.random()*960), Math.floor(Math.random() * 960)];
       this.id = options.id;
       this.img = options.img || "";
       this.name = options.screen_name || "test";
@@ -36,7 +36,7 @@
         */
         var nodes = [];
         var node = new Node({id: myid, screen_name: myname, img: user.img});
-        node.position = [500, 250];
+        node.position = [500, 500];
         nodes.push(node);
         var nodecount = 10;
         for (var i = 0; i < nodecount; i ++) {// relation in user.following) {
@@ -47,37 +47,53 @@
         }
 
         var count = 0;
+        var q = 100000000.0,
+            k = 7000.0,
+            l = 400.0,
+            dt = 0.01,
+            m = 1.0,
+            dec = 0.2,
+            i, j, energy, node1, node2, dx, dy, d, p, speed
+            power = [0.0, 0.0];
         do {
-          var energy = 0;
-          for (var i = 1; i < nodecount; i++) {
-            var node1 = nodes[i];
-            power = [0.0,0.0];
-            var g = 500.0;
-            for (var j = 0; j < nodecount; j ++) {
-              var node2 = nodes[j];
+          energy = 0;
+          for (i = 1; i <= nodecount; i++) {
+            node1 = nodes[i];
+            power[0] = 0.0;
+            power[1] = 0.0;
+            for (j = 0; j <= nodecount; j ++) {
+              node2 = nodes[j];
               if (node1 === node2) continue;
-              power[0] = power[0] + g / Math.pow(node1.position[0] - node2.position[0],2);
-              power[1] = power[1] + g / Math.pow(node1.position[1] - node2.position[1],2);
+              dx = node1.position[0] - node2.position[0];
+              dy = node1.position[1] - node2.position[1];
+              p = dx*dx + dy*dy;
+              d = Math.sqrt(p);
+              power[0] = power[0] + q / (p * dx / d);
+              power[1] = power[1] + q / (p * dy / d);
             }
-            var k = 0.7;
-            var l = 100.0;
-            for (var j = 0; j < nodecount; j ++) {
-              var node2 = nodes[j];
+            for (j = 0; j <= nodecount; j ++) {
+              node2 = nodes[j];
+              //node2 = node;
               if (node1 === node2) continue;
-              power[0] = power[0] + k * (Math.abs(node1.position[0] - node2.position[0]) - l);
-              power[1] = power[1] + k * (Math.abs(node1.position[1] - node2.position[1]) - l);
+              dx = node1.position[0] - node2.position[0];
+              dy = node1.position[1] - node2.position[1];
+              d = Math.sqrt(dx*dx+dy*dy);
+              power[0] = power[0] - k * (d - l) * (dx / d);
+              power[1] = power[1] - k * (d - l) * (dy / d);
             }
-            var dt = 0.1;
-            var m = 1.0;
-            node1.speed[0] = (node1.speed[0] + dt * power[0] / m) * 0.01;
-            node1.speed[1] = (node1.speed[1] + dt * power[1] / m) * 0.01;
+            node1.speed[0] = (node1.speed[0] + dt * power[0] / m) * dec;
+            node1.speed[1] = (node1.speed[1] + dt * power[1] / m) * dec;
+            //console.log("speed: " + node1.speed[0]);
+            //console.log("before: " + node1.position[0] + ", " + node1.position[1]);
             node1.position[0] = node1.position[0] + dt * node1.speed[0];
             node1.position[1] = node1.position[1] + dt * node1.speed[1];
-            energy = energy + m * (node1.speed[0]*node1.speed[0] + node1.speed[1] * node1.speed[1]);
+            speed = Math.sqrt(node1.speed[0]*node1.speed[0] + node1.speed[1]*node1.speed[1]);
+            //console.log("after: " + node1.position[0] + ", " + node1.position[1]);
+            energy = energy + m * Math.sqrt(speed);
           }
           count ++;
-          console.log("energy: " + energy);
-        } while(count < 100)//energy > 100);
+          //console.log("energy: " + energy);
+        } while(count < 10000);
         console.log(count);
         for (var i = 0; i < nodes.length; i ++) {
           var node1 = nodes[i];
