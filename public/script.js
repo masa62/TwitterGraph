@@ -13,9 +13,11 @@
     var canvas = document.getElementsByTagName("canvas")[0];
     var context = canvas.getContext('2d');
 
+    var phase = 0;
+
     function Node(options) {
       this.speed = [0, 0];
-      this.position = [Math.floor(Math.random()*960), Math.floor(Math.random() * 960)];
+      this.position = [0, 0];
       this.id = options.id;
       this.img = options.img || "";
       this.name = options.screen_name || "test";
@@ -29,19 +31,34 @@
       if (xhr.readyState === 4 && xhr.status === 200) {
         var user = JSON.parse(xhr.responseText);
         // ここで解析しながらグラフを描く
-        /*
-        var img = new Image();
-        img.src = user.img;
-        context.drawImage(img, 0, 0);
-        */
         var nodes = [];
         var node = new Node({id: myid, screen_name: myname, img: user.img});
-        node.position = [500, 500];
+        node.position = [476, 476];
         nodes.push(node);
-        var nodecount = 10;
-        for (var i = 0; i < nodecount; i ++) {// relation in user.following) {
+        var nodecount = 9;
+        for (var i = 0; i < nodecount; i ++) {
           var relation = user.following[i];
           var rnode = new Node({id: relation});
+          var xoffset = 100,
+              yoffset = 100;
+          switch (phase) {
+            case 0:
+              break;
+            case 1:
+              xoffset += 500.0;
+              break;
+            case 2:
+              yoffset += 500.0;
+              break;
+            case 3:
+              xoffset += 500.0;
+              yoffset += 500.0;
+              break;
+          }
+          phase = (phase+1)%4;
+          rnode.position[0] = Math.floor(Math.random()*400) + xoffset;
+          rnode.position[1] = Math.floor(Math.random()*400) + yoffset;
+          console.log(rnode.position[0] + ", " + rnode.position[1]);
           node.relation.push(rnode);
           nodes.push(rnode);
         }
@@ -99,7 +116,10 @@
           var node1 = nodes[i];
           var img = new Image();
           img.src = user.img;
-          context.drawImage(img, node1.position[0], node1.position[1]);
+          context.drawImage(img, node1.position[0]-24, node1.position[1]-24);
+          if (i === 0) {
+            context.fillText(myname, node1.position[0]-24, node1.position[1]-24);
+          }
         }
       }
     };
