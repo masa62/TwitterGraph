@@ -150,6 +150,13 @@
         var sx = nodes[0].position[0],
             sy = nodes[0].position[1];
         console.log(sx + ", " + sy);
+        var max = 0;
+        var min = 100;
+        for (var i = 0; i < relation.length; i ++) {
+            max = max < relation[i].score ? relation[i].score : max;
+            min = min > relation[i].score ? relation[i].score : min;
+        }
+        console.log(min + " / " + max);
         for (var i = 1; i < nodes.length; i ++) {
           var ex = nodes[i].position[0],
               ey = nodes[i].position[1],
@@ -161,27 +168,57 @@
             if (relation[j].to === uid) {
               console.log("found: " + uid);
               r = relation[j];
-               break;
+              console.log("score: " + r.score);
+              r.score = (r.score - min) / (max-min) * 100;
+              console.log("=>" + r.score);
+              break;
             }
           }
           if (!r) {
             console.log("no relation");
             continue;
           }
-          var color = "red";
+          var colors = [
+          /*
+            "rgba(0, 0, 255, 1.0)",
+            "rgba(0, 0, 255, 0.8)",
+            "rgba(0, 0, 255, 0.6)",
+            "rgba(0, 0, 255, 0.4)",
+            "rgba(0, 0, 255, 0.2)",
+            "rgba(128, 128, 128, 0.2)",
+            */
+            "rgba(255, 0, 0, 0.1)",
+            "rgba(255, 0, 0, 0.2)",
+            "rgba(255, 0, 0, 0.3)",
+            "rgba(255, 0, 0, 0.4)",
+            "rgba(255, 0, 0, 0.5)",
+            "rgba(255, 0, 0, 0.6)",
+            "rgba(255, 0, 0, 0.7)",
+            "rgba(255, 0, 0, 0.8)",
+            "rgba(255, 0, 0, 0.9)",
+            "rgba(255, 0, 0, 1.0)",
+            "rgba(255, 0, 0, 1.0)"
+          ];
+          console.log("score: " + r.score);
+          var score = Math.floor(r.score/10);
+          console.log("score: " + score);
+          var color = colors[Math.floor(r.score/10)];
+          console.log(color);
+          context.strokeStyle = color;
           context.lineWidth = 10;
           context.beginPath();
           context.moveTo(sx, sy);
           context.lineTo(ex, ey);
           context.stroke();
+          context.strokeStyle = "#000";
         }
         for (var i = 0; i < nodes.length; i ++) {
-          var node1 = nodes[i];
-          if (node1.img) {
+          var node = nodes[i];
+          if (node.img) {
             var img = new Image();
-            img.src = nodes[i].img;
-            context.drawImage(img, node1.position[0]-24, node1.position[1]-24);
-            context.fillText(node1.name, node1.position[0]-24, node1.position[1]-24);
+            img.src = node.img;
+            context.drawImage(img, node.position[0]-24, node.position[1]-24);
+            context.fillText(node.name, node.position[0]-24, node.position[1]-24);
           }
           else {
             (function (node1) {
@@ -199,7 +236,7 @@
                 context.fillText(user.screen_name, node1.position[0]-24, node1.position[1]-24);
               }
               img_request.send(null);
-            })(node1);
+            })(node);
           }
         }
       }
