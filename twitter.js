@@ -243,6 +243,78 @@ app.get('/between/:id/:oid', function (req, res) {
   });
 });
 
+app.get('/friends/:id', function (req, res) {
+  console.log("hello");
+  var id = req.params.id;
+  Relation.find({from: id}, function (err, docs) {
+    var relations = docs;
+    var counts = relations.length;
+    var data = [];
+    console.log(relations);
+    for (var i = 0; i < relations.length; i ++) {
+      var relation = relations[i];
+      console.log(relation.to);
+      (function (rid) {
+        User.find({id: rid}, function (err, docs) {
+          var tmp = {id: rid};
+          if (docs.length != 0) {
+            console.log(docs[0]);
+            tmp = {id: rid, img: docs[0].img, screen_name: docs[0].screen_name};
+          }
+          data.push(tmp);
+          console.log(counts + " / " + data.length);
+          if (data.length === counts) {
+            console.log("send data");
+            console.log(data);
+            res.send(data);
+          }
+        });
+      })(relation.to);
+    }
+  });
+});
+
+app.get('/img/:id', function (req, res) {
+  var id = req.params.id;
+  User.find ({id: id}, function (err, docs) {
+    console.log(docs);
+    if (docs.length === 0) {
+      var oa = req.session.oauth;
+      oauth.get("http://api.twitter.com/1/users/show.json?user_id=" + id, 
+        oa.access_token,
+        oa.access_token_secret, 
+        function (err, data) {
+          var user = JSON.parse(data);
+          request({
+            uri: 'https://api.twitter.com/1/users/profile_image?screen_name=' + user.screen_name + '&size=normal',
+            encoding: 'binary'
+          }, function (error, response, body) {
+            if (response.statusCode === 200) {
+              var u = new User({
+                id: user.id,
+                screen_name: user.screen_name,
+                img: "data:" + response.headers["content-type"] + 
+                     ";base64," + 
+                     (new Buffer(body, 'binary')).toString('base64')
+              });
+              u.save();
+              res.send({
+                id: id,
+                screen_name: user.screen_name,
+                img: u.img
+              });
+              
+            }
+          });
+        });
+    }
+    else {
+      var user = docs[0];
+      res.send({img: user.img, id: user.id, screen_name: user.screen_name});
+    }
+  });
+});
+
 app.get('signout', function (req, res) {
   delete req.session.oauth;
   delete req.session.user_profile;
