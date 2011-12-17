@@ -1,7 +1,6 @@
 (function () {
   window.onload = function () {
 
-    /** definition start **/
     var User = function (name) {
       this.name = name;
       this.relation = [];
@@ -168,9 +167,8 @@
             })(node);
           }
         }
-      };// function draw end
+      }// function draw end
 
-    /** definition ended **/
 
     var xhr = new XMLHttpRequest();
     xhr.open("GET", "/user/" + myid);
@@ -196,9 +194,8 @@
       if (xhr2.status === 404) {
         return;
        }
-
       var user_info = JSON.parse(xhr2.responseText);
-
+      console.log(user_info);
       for (var i = 0; i < user_info.length; i ++) {
         var r = user_info[i];
         console.log(r.id);
